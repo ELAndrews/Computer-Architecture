@@ -73,8 +73,8 @@ class CPU:
         self.reg[req_reg] = value
 
 
-    def prn(self):
-
+    def prn(self, req_reg):
+        print(self.reg[req_reg])
 
     def run(self):
         """Run the CPU."""
@@ -87,17 +87,21 @@ class CPU:
             after_op_2 = self.ram_read(self.pc+2)
 
 
-            ## HLT => exit loop
-            if IR == :
+            ## HLT => exit loop 0b00000001 = 1
+            if IR == 1:
                 running = False
                 break
 
-            ## LDI => give specified register a specified value 
-            elif IR == :
+            ## LDI => give specified register a specified value 0b10000010 = 130
+            elif IR == 130:
+                self.ldi(after_op_1, after_op_2)
+                self.pc += 3
 
 
-            ## PRN => give specified register a specified value 
-            elif IR == :
+            ## PRN => give specified register a specified value 0b01000111 = 71
+            elif IR == 71:
+                self.prn(after_op_1)
+                self.pc += 2
 
             
             ## if all else fails
