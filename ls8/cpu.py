@@ -12,9 +12,8 @@ class CPU:
         self.pc = 0
         self.branchtable = {}
         self.branchtable_ops()
-
         ## main stack register is called the stack pointer => https://books.google.co.uk/books?id=9vaFDwAAQBAJ&pg=PA410&lpg=PA410&dq=CPU+address+0xF3&source=bl&ots=tQs8CNjKFj&sig=ACfU3U19OP1uIiM5HJubkSE5AWn6sAL93A&hl=en&sa=X&ved=2ahUKEwix-rj6jcDpAhX9RBUIHRXCCPAQ6AEwAHoECAcQAQ#v=onepage&q=CPU%20address%200xF3&f=false
-        self.stack_pointer = 0x3F
+        self.stack_pointer = 0xF3
 
     def ram_read(self, address):
         return self.ram[address]
@@ -131,9 +130,9 @@ class CPU:
 
     ### System Stack Operations
 
-    def PUSH(self, reg_a, reg_b):
-        stack_value = self.ram[self.stack_pointer]
-        self.reg[reg_a] = stack_value
+    def POP(self, reg_a, reg_b):
+        value = self.ram[self.stack_pointer]
+        self.reg[reg_a] = value
 
         # We cannot move past the top of the stack, so once we reach 0xFF, we shouldn't increase the pointer
         if self.stack_pointer != 0xFF:
@@ -141,11 +140,11 @@ class CPU:
         self.pc += 2
 
 
-    def POP(self, reg_a, reg_b):
+    def PUSH(self, reg_a, reg_b):
         # Move stack pointer down, get value from register and insert value onto stack
         self.stack_pointer -= 1
-        val = self.reg[reg_a]
-        self.ram_write(self.stack_pointer, val)
+        value = self.reg[reg_a]
+        self.ram_write(self.stack_pointer, value)
         self.pc += 2
 
 
