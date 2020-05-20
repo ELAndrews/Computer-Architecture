@@ -13,7 +13,7 @@ class CPU:
         self.branchtable = {}
         self.branchtable_ops()
         ## main stack register is called the stack pointer => https://books.google.co.uk/books?id=9vaFDwAAQBAJ&pg=PA410&lpg=PA410&dq=CPU+address+0xF3&source=bl&ots=tQs8CNjKFj&sig=ACfU3U19OP1uIiM5HJubkSE5AWn6sAL93A&hl=en&sa=X&ved=2ahUKEwix-rj6jcDpAhX9RBUIHRXCCPAQ6AEwAHoECAcQAQ#v=onepage&q=CPU%20address%200xF3&f=false
-        self.stack_pointer = 0xF3
+        # self.stack_pointer = 0xF4 ==> self.reg[7]
 
     def ram_read(self, address):
         return self.ram[address]
@@ -72,7 +72,6 @@ class CPU:
             self.reg[reg_a] /= self.reg[reg_b]
         elif op == "MOD":
             self.reg[reg_a] %= self.reg[reg_b]
-            
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -131,20 +130,20 @@ class CPU:
     ### System Stack Operations
 
     def POP(self, reg_a, reg_b):
-        value = self.ram[self.stack_pointer]
+        value = self.ram[self.reg[7]]
         self.reg[reg_a] = value
 
         # We cannot move past the top of the stack, so once we reach 0xFF, we shouldn't increase the pointer
-        if self.stack_pointer != 0xFF:
-            self.stack_pointer += 1
+        if self.reg[7] != 0xFF:
+            self.reg[7] += 1
         self.pc += 2
 
 
     def PUSH(self, reg_a, reg_b):
         # Move stack pointer down, get value from register and insert value onto stack
-        self.stack_pointer -= 1
+        self.reg[7] -= 1
         value = self.reg[reg_a]
-        self.ram_write(self.stack_pointer, value)
+        self.ram_write(self.reg[7], value)
         self.pc += 2
 
 
@@ -174,7 +173,6 @@ class CPU:
                 running = False
                 break
 
-            ## LDI => give specified register a specified value 0b10000010 = 130
             elif IR in self.branchtable:
                 self.branchtable[IR](after_op_1, after_op_2)
             
