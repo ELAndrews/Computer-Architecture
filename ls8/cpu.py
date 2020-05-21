@@ -2,6 +2,37 @@
 
 import sys
 
+
+ADD = 0b10100000
+AND = 0B10101000
+CALL = 0b01010000
+CMP = 0b10100111
+HLT = 0b00000001
+IRET = 0b00010011
+JEQ = 0b01010101
+JGE = 0b01011010
+JGT = 0b01010111
+JLE = 0b01011001
+JLT = 0b01011000
+JMP = 0b01010100
+JNE = 0b01010110
+LD = 0b10000011
+LDI = 0b10000010
+MOD = 0b10100100
+MUL = 0b10100010
+NOT = 0b01101001
+OR = 0b10101010
+POP = 0b01000110
+PRN = 0b01000111
+PRA = 0b01001000
+PUSH = 0b01000101
+RET = 0b00010001
+SHL = 0b10101100
+SHR = 0b10101101
+ST = 0b10000100
+XOR = 0b10101011
+ST = 0b10000100
+
 class CPU:
     """Main CPU class."""
 
@@ -10,16 +41,30 @@ class CPU:
         self.reg = [0] * 8
         self.ram = [0] * 256
         self.pc = 0
-        self.branchtable = {}
-        self.branchtable_ops()
-        ## main stack register is called the stack pointer => https://books.google.co.uk/books?id=9vaFDwAAQBAJ&pg=PA410&lpg=PA410&dq=CPU+address+0xF3&source=bl&ots=tQs8CNjKFj&sig=ACfU3U19OP1uIiM5HJubkSE5AWn6sAL93A&hl=en&sa=X&ved=2ahUKEwix-rj6jcDpAhX9RBUIHRXCCPAQ6AEwAHoECAcQAQ#v=onepage&q=CPU%20address%200xF3&f=false
-        # self.stack_pointer = 0xF4 ==> self.reg[7]
+        self.MAR = None
+        self.MDR = None
+        self.branchtable = {
+            ADD: self.add,
+            MUL: self.mul,
+            LDI: self.ldi,
+            PRN: self.prn,
+            POP: self.pop,
+            PUSH: self.push,
+            CALL: self.call,
+            RET: self.ret,
+            ST: self.st,
+        }
+
 
     def ram_read(self, address):
-        return self.ram[address]
-    
+        self.MAR = address
+        self.MDR = self.ram[self.MAR]
+        return self.MDR
+
     def ram_write(self, address, value):
-        self.ram[address] = value
+        self.MAR = address
+        self.MDR = value
+        self.ram[self.MAR] = self.MDR
 
 
     def load(self, args):
@@ -41,27 +86,10 @@ class CPU:
             self.ram[address] = line
             address += 1
 
-
-        # # For now, we've just hardcoded a program:
-
-        # program = [
-        #     # From print8.ls8
-        #     0b10000010, # LDI R0,8
-        #     0b00000000,
-        #     0b00001000,
-        #     0b01000111, # PRN R0
-        #     0b00000000,
-        #     0b00000001, # HLT
-        # ]
-
-        # for instruction in program:
-        #     self.ram[address] = instruction
-        #     address += 1
-
+    ## ALU Operations handler
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
-
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
         elif op == "SUB":
@@ -75,26 +103,6 @@ class CPU:
         else:
             raise Exception("Unsupported ALU operation")
 
-
-    def trace(self):
-        """
-        Handy function to print out the CPU state. You might want to call this
-        from run() if you need help debugging.
-        """
-
-        print(f"TRACE: %02X | %02X %02X %02X |" % (
-            self.pc,
-            #self.fl,
-            #self.ie,
-            self.ram_read(self.pc),
-            self.ram_read(self.pc + 1),
-            self.ram_read(self.pc + 2)
-        ), end='')
-
-        for i in range(8):
-            print(" %02X" % self.reg[i], end='')
-
-        print()
 
     ### Reg Operations
 
@@ -129,33 +137,34 @@ class CPU:
 
     ### System Stack Operations
 
-    def POP(self, reg_a, reg_b):
+    def pop(self, reg_a, reg_b):
         value = self.ram[self.reg[7]]
         self.reg[reg_a] = value
-
-        # We cannot move past the top of the stack, so once we reach 0xFF, we shouldn't increase the pointer
         if self.reg[7] != 0xFF:
             self.reg[7] += 1
         self.pc += 2
 
-
-    def PUSH(self, reg_a, reg_b):
-        # Move stack pointer down, get value from register and insert value onto stack
+    def push(self, reg_a, reg_b):
         self.reg[7] -= 1
         value = self.reg[reg_a]
         self.ram_write(self.reg[7], value)
         self.pc += 2
 
+    def call(self, reg_a, reg_b):
+        self.reg[7] -= 1
+        return_address = self.pc + 2
+        self.ram_write(self.reg[7], return_address)
+        self.pc = self.reg[reg_a]
 
 
-    def branchtable_ops(self):
-        self.branchtable[0b10000010] = self.ldi
-        self.branchtable[0b01000111] = self.prn
-        self.branchtable[0b10100000] = self.add
-        self.branchtable[0b10100010] = self.mul
-        self.branchtable[0b01000110] = self.POP
-        self.branchtable[0b01000101] = self.PUSH
+    def ret(self, reg_a, reg_b):
+        stack_value = self.ram[self.reg[7]]
+        self.pc = stack_value
 
+    def st(self, reg_a, reg_b):
+        self.ram[self.reg[reg_a]] = self.reg[reg_b]
+
+    ## Processing 
 
     def run(self):
         """Run the CPU."""
@@ -167,16 +176,33 @@ class CPU:
             after_op_1 = self.ram_read(self.pc+1)
             after_op_2 = self.ram_read(self.pc+2)
 
-
-            ## HLT => exit loop 0b00000001 = 1
-            if IR == 0b00000001:
+            if IR == HLT:
                 running = False
                 break
 
             elif IR in self.branchtable:
                 self.branchtable[IR](after_op_1, after_op_2)
             
-            ## if all else fails
             else:
                 sys.exit()
 
+
+    def trace(self):
+        """
+        Handy function to print out the CPU state. You might want to call this
+        from run() if you need help debugging.
+        """
+
+        print(f"TRACE: %02X | %02X %02X %02X |" % (
+            self.pc,
+            #self.fl,
+            #self.ie,
+            self.ram_read(self.pc),
+            self.ram_read(self.pc + 1),
+            self.ram_read(self.pc + 2)
+        ), end='')
+
+        for i in range(8):
+            print(" %02X" % self.reg[i], end='')
+
+        print()
