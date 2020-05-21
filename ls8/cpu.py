@@ -1,7 +1,7 @@
 """CPU functionality."""
 
 import sys
-import datetime
+import time
 
 ADD = 0b10100000
 AND = 0B10101000
@@ -171,11 +171,11 @@ class CPU:
         IR = None 
         running = True
 
-        interrupt_start_time = datetime.now()
+        interrupt_start_time = time.perf_counter()
 
         while running:
 
-            time_checkpoint = datetime.now()
+            time_checkpoint = time.perf_counter()
 
             if time_checkpoint - interrupt_start_time >= 1:
                 self.reg[6] = self.reg[6] | 0b00000001
