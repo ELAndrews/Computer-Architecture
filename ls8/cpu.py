@@ -173,13 +173,15 @@ class CPU:
         self.pc = stack_value
 
     def st(self, reg_a, reg_b):
-        self.ram[self.reg[reg_a]] = self.reg[reg_b]
+        self.ram_write(self.reg[reg_a], self.reg[reg_b])
+        self.pc += 3
 
     def iret(self, reg_a, reg_b):
         for i in range(6, -1, -1):
             self.pop(i)
         self.fl = self.ram[self.reg[7]]
         self.reg[7] += 1
+        self.interruptible = True
 
     def jmp(self, reg_a, reg_b):
         self.pc = self.reg[reg_a]
@@ -242,16 +244,18 @@ class CPU:
                     run_interrupt = i
                     break
 
-                if  run_interrupt >= 1:
-                    self.interruptible = False
-                    self.reg[6] = 0b00000000
-                    self.push(self.pc)
-                    self.push(self.fl)
-                    for j in range(7, -1, -1):
-                        self.pop(j)
-                        self.reg[j] = 0
-                    interrupt_vector = 0xF8 + i
-                    self.pc = self.ram[interrupt_vector]
+            if  run_interrupt >= 1 and self.interruptible:
+                print("Interrupting...")
+                self.interruptible = False
+                self.reg[6] = 0b00000000
+                self.push(self.pc)
+                self.push(self.fl)
+
+                self.fl = 0
+                for j in range(7, -1, -1):
+                    self.push(j)
+                interrupt_vector = 0xF8 + i
+                self.pc = self.ram[interrupt_vector]
 
             IR = self.ram_read(self.pc)
             after_op_1 = self.ram_read(self.pc+1)
@@ -262,6 +266,7 @@ class CPU:
                 break
 
             elif IR in self.branchtable:
+                print(IR)
                 self.branchtable[IR](after_op_1, after_op_2)
             
             else:
