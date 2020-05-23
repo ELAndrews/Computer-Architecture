@@ -20,6 +20,8 @@ JLT = 0b01011000
 JNE = 0b01010110
 JEQ = 0b01010101
 NOP = 0b00000000
+INT = 0b01010010
+PRA = 0b1001000
 
 class CPU:
     """Main CPU class."""
@@ -30,6 +32,7 @@ class CPU:
         self.ram = [0] * 256
         self.pc = 0
         self.fl = 0b00000000
+        self.interruptible = True
         self.MAR = None
         self.MDR = None
         self.branchtable = {
@@ -48,7 +51,9 @@ class CPU:
             JLT: self.jlt,
             JNE: self.jne,
             JEQ: self.jeq,
-            NOP: self.nop
+            NOP: self.nop,
+            INT: self.int,
+            PRA: self.pra
         }
 
 
@@ -145,17 +150,16 @@ class CPU:
 
     ### System Stack Operations
 
-    def pop(self, reg_a, reg_b):
+    def pop(self, reg_a, reg_b=None):
         value = self.ram[self.reg[7]]
         self.reg[reg_a] = value
         if self.reg[7] != 0xFF:
             self.reg[7] += 1
         self.pc += 2
 
-    def push(self, reg_a, reg_b):
+    def push(self, reg_a, reg_b=None):
         self.reg[7] -= 1
-        value = self.reg[reg_a]
-        self.ram_write(self.reg[7], value)
+        self.ram[self.reg[7]] = self.reg[reg_a]
         self.pc += 2
 
     def call(self, reg_a, reg_b):
@@ -169,15 +173,15 @@ class CPU:
         self.pc = stack_value
 
     def st(self, reg_a, reg_b):
-        self.ram[self.reg[reg_a]] = self.reg[reg_b]
+        self.ram_write(self.reg[reg_a], self.reg[reg_b])
+        self.pc += 3
 
     def iret(self, reg_a, reg_b):
         for i in range(6, -1, -1):
-            self.pop(i, reg_b)
+            self.pop(i)
         self.fl = self.ram[self.reg[7]]
         self.reg[7] += 1
-        self.pc = self.ram[self.reg[7]]
-        self.reg[7] += 1
+        self.interruptible = True
 
     def jmp(self, reg_a, reg_b):
         self.pc = self.reg[reg_a]
@@ -203,6 +207,12 @@ class CPU:
     def nop(self, reg_a, reg_b):
         pass
 
+    def int(self, reg_a, reg_b):
+        int_num = self.reg[reg_a]
+        self.pc = int_num - 2
+
+    def pra(self, reg_a, reg_b):
+        print(chr(self.reg[reg_a]))
 
     ## Processing 
 
@@ -211,37 +221,41 @@ class CPU:
         IR = None 
         running = True
 
-        interrupt_start_time = time.perf_counter()
+        interrupt_timer = time.perf_counter()
 
         while running:
 
             time_checkpoint = time.perf_counter()
 
-            if time_checkpoint - interrupt_start_time >= 1:
-                self.reg[6] = self.reg[6]
-                interrupt_start_time = time_checkpoint
-            
-            masked_interrupts = self.reg[5] & self.reg[6]
+            self.reg[5] = self.reg[5] & self.reg[6]
+            masked_interrupts = "{0:08b}".format(self.reg[5])
+            run_interrupt = -1
 
-            for i in range(8):
-                interrupt_happened = ((masked_interrupts >> i) & 1) == 1
+            if interrupt_timer <= 1:
+                self.reg[6] = self.reg[6] | 0b00000001
+                interrupt_timer = time_checkpoint
+            else: 
+                run_interrupt = 1
 
-                if interrupt_happened:
-                    self.reg[6] = self.reg[6] & int(
-                        '1' * (7 - i) + '0' + '1' * (i), 2)
 
-                    self.reg[7] -= 1
-                    self.ram_write(self.reg[7], self.pc)
+            for i in range(len(masked_interrupts)):
+                bit = masked_interrupts[i]
+                if bit is '1':
+                    run_interrupt = i
+                    break
 
-                    self.reg[7] -= 1
-                    self.ram_write(self.reg[7], self.fl)
+            if  run_interrupt >= 1 and self.interruptible:
+                print("Interrupting...")
+                self.interruptible = False
+                self.reg[6] = 0b00000000
+                self.push(self.pc)
+                self.push(self.fl)
 
-                    self.fl = 0
-                    for j in range(7):
-                        self.push(j)
-                        self.reg[j] = 0
-                    interrupt_vector = 0xF8 + i
-                    self.pc = self.ram[interrupt_vector]
+                self.fl = 0
+                for j in range(7, -1, -1):
+                    self.push(j)
+                interrupt_vector = 0xF8 + i
+                self.pc = self.ram[interrupt_vector]
 
             IR = self.ram_read(self.pc)
             after_op_1 = self.ram_read(self.pc+1)
@@ -252,6 +266,7 @@ class CPU:
                 break
 
             elif IR in self.branchtable:
+                print(IR)
                 self.branchtable[IR](after_op_1, after_op_2)
             
             else:
